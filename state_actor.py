@@ -1,4 +1,5 @@
 from google.adk.agents.llm_agent import Agent
+from google.genai import types
 from typing import Dict, List
 import json
 from dotenv import load_dotenv
@@ -74,53 +75,50 @@ Respond authentically as this state actor would, given their identity and worldv
         Returns the state's interpretation and emotional response.
         """
         prompt = f"""
-An event has occurred: {json.dumps(event, indent=2)}
+            An event has occurred: {json.dumps(event, indent=2)}
 
-As {self.name}, analyze this event:
-1. What does this mean for your national interests (shaped by your identity)?
-2. How does this affect your relationships with other states?
-3. Does this event violate or reinforce international norms you care about?
-4. What emotions does this evoke (threat, opportunity, solidarity, betrayal)?
+            As {self.name}, analyze this event:
+            1. What does this mean for your national interests (shaped by your identity)?
+            2. How does this affect your relationships with other states?
+            3. Does this event violate or reinforce international norms you care about?
+            4. What emotions does this evoke (threat, opportunity, solidarity, betrayal)?
 
-Provide your analysis in JSON format with keys: interpretation, threat_level, 
-opportunities, norm_assessment, affected_relationships, emotional_response.
-"""
-        
-        response = await self.generate_content(
-            prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json"
-            )
-        )
-        
-        return json.loads(response.text)
-    
-    async def select_action(self, situation: Dict, available_actions: List[str]) -> Dict:
+            Provide your analysis in JSON format with keys: interpretation, threat_level, 
+            opportunities, norm_assessment, affected_relationships, emotional_response.
         """
-        Choose an action based on identity, relationships, and norms.
+        
+        response = await self.run_async(prompt)
+        
+        try:
+            return json.loads(response.text)
+        except json.JSONDecodeError:
+            return {"error": "Failed to parse agent response", "raw": response.text}
+        
+    async def create_action(self, situation: Dict) -> Dict:
+        """
+        Generate a novel, plausible action based on identity, relationships, and norms.
+        Rather than selecting from predefined options, the agent creates an action
+        that authentically reflects its identity and strategic position.
         """
         prompt = f"""
-Current Situation: {json.dumps(situation, indent=2)}
+            Current Situation: {json.dumps(situation, indent=2)}
 
-Available Actions: {', '.join(available_actions)}
+            As {self.name}, generate a plausible diplomatic or strategic action that:
+            1. Authentically reflects your national identity and values
+            2. Considers your current relationships with other states
+            3. Aligns with the norms you internalize or challenges those you contest
+            4. Emerges from your strategic interests grounded in identity
 
-Select the action that best aligns with:
-1. Your national identity and values
-2. Your relationships with other states
-3. The norms you support or contest
-4. Your strategic interests (which emerge from identity, not just power)
+            Think creatively but realistically about what actions a state with your identity
+            and current relationships would take in this situation. The action should be 
+            specific, concrete, and implementable in the international system.
 
-Justify your choice in terms of identity and normative considerations.
-
-Return JSON: {{"selected_action": "...", "justification": "...", "expected_reactions": {{}}}}
-"""
+            Return JSON: {{"action": "...", "action_type": "diplomatic|economic|military|cultural|multilateral", "justification": "...", "expected_reactions": {{}}, "risks": ["..."], "identity_alignment": "..."}}
+        """
         
-        response = await self.generate_content(
-            prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                thinking_level="high"  # Deep reasoning for strategic choices
-            )
-        )
+        response = await self.run_async(prompt)
         
-        return json.loads(response.text)
+        try:
+            return json.loads(response.text)
+        except json.JSONDecodeError:
+            return {"error": "Failed to parse agent response", "raw": response.text}
