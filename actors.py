@@ -29,7 +29,7 @@ china_agent = StateActorAgent(
 
 # Create USA agent
 usa_agent = StateActorAgent(
-    name="United States",
+    name="United_States",
     identity={
         "regime_type": "democratic",
         "historical_narrative": "Leader of free world, defender of liberal order",
@@ -84,3 +84,36 @@ russia_agent = StateActorAgent(
         "Western_values_universalism"
     ]
 )
+
+
+async def main():
+    """Test the China agent by displaying its identity and configuration."""
+    
+    print("=" * 60)
+    print("Testing China Agent")
+    print("=" * 60)
+    print(f"\nAgent Name: {china_agent.name}")
+    print(f"\nNational Identity:")
+    for key, value in china_agent.national_identity.items():
+        print(f"  {key}: {value}")
+    
+    print(f"\nRelationships:")
+    for country, trust_level in china_agent.relationships.items():
+        print(f"  {country}: {trust_level}")
+    
+    print(f"\nInternalized Norms:")
+    for norm in china_agent.norms_internalized:
+        print(f"  - {norm}")
+    
+    print(f"\nContested Norms:")
+    for norm in china_agent.norms_contested:
+        print(f"  - {norm}")
+    
+    print("\n" + "=" * 60)
+    print("China Agent successfully instantiated with constructivist identity!")
+    print("=" * 60)
+
+
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(main())

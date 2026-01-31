@@ -3,6 +3,7 @@ from google.genai import types
 from typing import Dict, List
 import json
 from dotenv import load_dotenv
+from pydantic import ConfigDict, Field
 
 load_dotenv()
 
@@ -12,53 +13,59 @@ class StateActorAgent(Agent):
     Implements constructivist principles: identity shapes interests.
     """
     
-    def __init__(
+    national_identity: Dict = Field(default_factory=dict)
+    relationships: Dict[str, float] = Field(default_factory=dict)
+    norms_internalized: List[str] = Field(default_factory=list)
+    norms_contested: List[str] = Field(default_factory=list)
+
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra='allow')
+    
+
+    def __init__(self, **data):
+        name = data.get("name", "Unknown State")
+        identity = data.get("national_identity", {})
+        rels = data.get("relationships", {})
+        norms_in = data.get("norms_internalized", [])
+        norms_con = data.get("norms_contested", [])
+        
+        data["system_instruction"] = self._build_identity_prompt(
+            name, identity, rels, norms_in, norms_con
+        )
+        
+        data.setdefault("model", "gemini-3-pro-preview")
+    
+        super().__init__(**data)
+    
+    def _build_identity_prompt(
         self,
         name: str,
         identity: Dict,
         relationships: Dict[str, float],
         norms_internalized: List[str],
         norms_contested: List[str]
-    ):
-        # Core identity (constructivist foundation)
-        self.national_identity = identity
-        self.relationships = relationships  # Trust levels with other states
-        self.norms_internalized = norms_internalized
-        self.norms_contested = norms_contested
-        
-        # Build system instruction that embeds identity
-        system_instruction = self._build_identity_prompt()
-        
-        super().__init__(
-            name=name,
-            model="gemini-3-pro-preview",
-            system_instruction=system_instruction,
-            thinking_level="high"  # Deep reasoning for strategic decisions
-        )
-    
-    def _build_identity_prompt(self) -> str:
+    ) -> str:
         """
         Constructs the system prompt that embeds the state's identity.
         This is where constructivist theory gets operationalized.
         """
         return f"""
-            You are {self.name}, a sovereign state actor in the international system.
+            You are {name}, a sovereign state actor in the international system.
 
             CORE IDENTITY:
-            {json.dumps(self.national_identity, indent=2)}
+            {json.dumps(identity, indent=2)}
 
             Your identity fundamentally shapes how you perceive threats, opportunities, 
             and appropriate behavior. Your interests are NOT predetermined - they emerge 
             from your identity and social interactions with other states.
 
             INTERNALIZED NORMS (you follow these as part of your identity):
-            {', '.join(self.norms_internalized)}
+            {', '.join(norms_internalized)}
 
             CONTESTED NORMS (you actively challenge these):
-            {', '.join(self.norms_contested)}
+            {', '.join(norms_contested)}
 
             CURRENT RELATIONSHIPS:
-            {json.dumps(self.relationships, indent=2)}
+            {json.dumps(relationships, indent=2)}
 
             When making decisions:
             1. Interpret events through your identity lens
@@ -86,13 +93,16 @@ class StateActorAgent(Agent):
             Provide your analysis in JSON format with keys: interpretation, threat_level, 
             opportunities, norm_assessment, affected_relationships, emotional_response.
         """
+        response = ""
         
-        response = await self.run_async(prompt)
-        
-        try:
-            return json.loads(response.text)
-        except json.JSONDecodeError:
-            return {"error": "Failed to parse agent response", "raw": response.text}
+        async for event in self.run_async(prompt):
+            if event.is_final_response() and event.content and event.content.parts:
+            # Reconstruct the response text from parts
+                response = "".join(part.text for part in event.content.parts if part.text)
+                break
+            
+            return response
+    
         
     async def create_action(self, situation: Dict) -> Dict:
         """
