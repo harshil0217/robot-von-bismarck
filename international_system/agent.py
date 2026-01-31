@@ -1,3 +1,10 @@
+from google.adk.agents import LoopAgent, ParallelAgent, SequentialAgent, LlmAgent
+from google.adk.runners import Runner
+from google.genai import types
+from typing import Dict, List
+import json
+from dotenv import load_dotenv
+from pydantic import ConfigDict, Field
 from google.adk.agents.llm_agent import Agent
 from google.genai import types
 from typing import Dict, List
@@ -138,3 +145,134 @@ class StateActorAgent(Agent):
             return {"error": "Failed to parse agent response", "raw": response.text}
             
         """
+
+china_agent = StateActorAgent(
+    name="China",
+    identity={
+        "regime_type": "authoritarian",
+        "historical_narrative": "Century of humiliation followed by resurgence",
+        "self_image": "Rising great power seeking rightful place",
+        "core_values": ["sovereignty", "non-interference", "multipolarity"],
+        "regional_role": "Regional hegemon in Asia-Pacific"
+    },
+    relationships={
+        "USA": -0.3,      # Rivalry
+        "Russia": 0.6,    # Strategic partnership
+        "ASEAN": 0.2,     # Mixed
+        "EU": 0.1         # Economic ties, political tension
+    },
+    norms_internalized=[
+        "territorial_sovereignty",
+        "economic_interdependence",
+        "UN_Charter_principles"
+    ],
+    norms_contested=[
+        "liberal_intervention",
+        "universal_human_rights",
+        "freedom_of_navigation_US_interpretation"
+    ]
+)
+
+# Create USA agent
+usa_agent = StateActorAgent(
+    name="United_States",
+    identity={
+        "regime_type": "democratic",
+        "historical_narrative": "Leader of free world, defender of liberal order",
+        "self_image": "Indispensable nation, global security provider",
+        "core_values": ["democracy", "human_rights", "rule_of_law", "free_markets"],
+        "regional_role": "Global hegemon with worldwide commitments"
+    },
+    relationships={
+        "China": -0.3,
+        "Russia": -0.6,
+        "Japan": 0.7,
+        "South_Korea": 0.7
+    },
+    norms_internalized=[
+        "liberal_intervention",
+        "freedom_of_navigation",
+        "alliance_commitments",
+        "nuclear_non_proliferation"
+    ],
+    norms_contested=[
+        "ICC_jurisdiction",
+        "absolute_sovereignty"
+    ]
+)
+
+# Create Russia agent
+russia_agent = StateActorAgent(
+    name="Russia",
+    identity={
+        "regime_type": "authoritarian",
+        "historical_narrative": "Former superpower in multipolarity, civilizational leader",
+        "self_image": "Defender of traditional values, great power resisting Western hegemony",
+        "core_values": ["sovereignty", "sphere_of_influence", "civilizational_identity", "multipolarity"],
+        "regional_role": "Regional hegemon in Eurasia, nuclear power"
+    },
+    relationships={
+        "USA": -0.7,      # Strategic rivalry
+        "China": 0.6,     # Strategic partnership
+        "Europe": -0.4,   # Contested sphere
+        "Ukraine": -0.8   # Contested influence
+    },
+    norms_internalized=[
+        "territorial_sovereignty",
+        "spheres_of_influence",
+        "nuclear_deterrence",
+        "great_power_politics"
+    ],
+    norms_contested=[
+        "liberal_intervention",
+        "NATO_expansion",
+        "color_revolutions",
+        "Western_values_universalism"
+    ]
+)
+
+# Create EU agent
+eu_agent = StateActorAgent(
+    name="European_Union",
+    identity={
+        "regime_type": "supranational_democratic",
+        "historical_narrative": "Born from ashes of WWII, committed to peace through integration",
+        "self_image": "Normative power, promoter of liberal values and multilateralism",
+        "core_values": ["peace", "human_rights", "rule_of_law", "multilateralism", "solidarity"],
+        "regional_role": "Regional power and global normative actor"
+    },
+    relationships={
+        "USA": 0.6,        # Close ally but tensions over autonomy
+        "Russia": -0.5,    # Adversary, energy dependent, security concerns
+        "China": 0.1,      # Economic competitor, normative divergence
+        "UK": 0.4          # Special relationship post-Brexit
+    },
+    norms_internalized=[
+        "multilateralism",
+        "human_rights",
+        "rule_of_law",
+        "liberal_democracy",
+        "environmental_protection"
+    ],
+    norms_contested=[
+        "absolute_national_sovereignty",
+        "unilateralism",
+        "authoritarianism",
+        "illiberal_democracy"
+    ]
+)
+
+# 2. Wrap them in a ParallelAgent to execute concurrently
+# All agents in this list will start at approximately the same time
+simultaneous_reaction = SequentialAgent(
+    name="SimultaneousReaction",
+    sub_agents=[usa_agent, china_agent, russia_agent, eu_agent]
+)
+
+# 3. Use a LoopAgent to repeat the parallel "turn"
+# In each turn, both countries react to the latest state of the board
+root_agent  = LoopAgent(
+    name="TariffSimulation",
+    sub_agents=[simultaneous_reaction],
+    max_iterations=3
+)

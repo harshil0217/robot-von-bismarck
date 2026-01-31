@@ -1,4 +1,6 @@
 from state_actor import StateActorAgent
+import json
+import asyncio
 
 china_agent = StateActorAgent(
     name="China",
@@ -85,12 +87,44 @@ russia_agent = StateActorAgent(
     ]
 )
 
+# Create EU agent
+eu_agent = StateActorAgent(
+    name="European_Union",
+    identity={
+        "regime_type": "supranational_democratic",
+        "historical_narrative": "Born from ashes of WWII, committed to peace through integration",
+        "self_image": "Normative power, promoter of liberal values and multilateralism",
+        "core_values": ["peace", "human_rights", "rule_of_law", "multilateralism", "solidarity"],
+        "regional_role": "Regional power and global normative actor"
+    },
+    relationships={
+        "USA": 0.6,        # Close ally but tensions over autonomy
+        "Russia": -0.5,    # Adversary, energy dependent, security concerns
+        "China": 0.1,      # Economic competitor, normative divergence
+        "UK": 0.4          # Special relationship post-Brexit
+    },
+    norms_internalized=[
+        "multilateralism",
+        "human_rights",
+        "rule_of_law",
+        "liberal_democracy",
+        "environmental_protection"
+    ],
+    norms_contested=[
+        "absolute_national_sovereignty",
+        "unilateralism",
+        "authoritarianism",
+        "illiberal_democracy"
+    ]
+)
 
-async def main():
-    """Test the China agent by displaying its identity and configuration."""
+
+def main():
+    """Test the state agents and their methods."""
     
+    # Test 1: Display agent identity configurations
     print("=" * 60)
-    print("Testing China Agent")
+    print("Test 1: China Agent - Identity Configuration")
     print("=" * 60)
     print(f"\nAgent Name: {china_agent.name}")
     print(f"\nNational Identity:")
@@ -109,11 +143,30 @@ async def main():
     for norm in china_agent.norms_contested:
         print(f"  - {norm}")
     
+    print("\nChina Agent successfully instantiated with constructivist identity!")
+    
+    # Test 2: Test perceive_event method
     print("\n" + "=" * 60)
-    print("China Agent successfully instantiated with constructivist identity!")
+    print("Test 2: China Agent - perceive_event()")
     print("=" * 60)
+    
+    test_event = {
+        "type": "trade_action",
+        "actor": "United States",
+        "description": "USA imposes new tariffs on Chinese technology exports",
+        "affected_regions": ["Asia-Pacific", "Global"]
+    }
+    
+    print(f"\nTest Event:")
+    print(json.dumps(test_event, indent=2))
+    
+    print("\n--- Processing Event through Identity Lens ---")
+    
+    result = asyncio.run(china_agent.perceive_event(test_event))
+    print("\nAgent Analysis:")
+    print(json.dumps(result, indent=2))
+    
 
 
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
+    main()
