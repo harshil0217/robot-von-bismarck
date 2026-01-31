@@ -18,25 +18,42 @@ class StateActorAgent(Agent):
     """
     Represents a state actor in the international system.
     Implements constructivist principles: identity shapes interests.
+    Uses norm weightings to define national identity and worldview.
     """
     
     national_identity: Dict = Field(default_factory=dict)
     relationships: Dict[str, float] = Field(default_factory=dict)
-    norms_internalized: List[str] = Field(default_factory=list)
-    norms_contested: List[str] = Field(default_factory=list)
+    norm_weights: Dict[str, float] = Field(default_factory=dict)
+    
+    # Learning rate for norm adaptation (lower = slower change)
+    norm_adaptation_rate: float = Field(default=0.05)
 
     model_config = ConfigDict(arbitrary_types_allowed=True, extra='allow')
     
+    # Define the 10 norms used across all agents
+    NORM_DEFINITIONS = {
+        "multilateral_cooperation": "Multilateral Cooperation: -1 (Pure unilateralism) to +1 (Committed multilateralism through international institutions)",
+        "sovereignty_as_responsibility": "Sovereignty as Responsibility: -1 (Absolute sovereignty, no accountability) to +1 (R2P - duty to protect populations)",
+        "human_rights_universalism": "Human Rights Universalism: -1 (Rejection of universal standards) to +1 (Universal commitment to human rights)",
+        "diplomatic_engagement": "Diplomatic Engagement over Isolation: -1 (Diplomatic isolation) to +1 (Sustained dialogue even with rivals)",
+        "norm_entrepreneurship": "Norm Entrepreneurship: -1 (Resistance to international norms) to +1 (Active promotion of international norms)",
+        "peaceful_dispute_resolution": "Peaceful Dispute Resolution: -1 (Military solutions preferred) to +1 (Commitment to international law and arbitration)",
+        "diffuse_reciprocity": "Diffuse Reciprocity: -1 (Transactional quid-pro-quo only) to +1 (Long-term cooperation without immediate returns)",
+        "collective_identity_formation": "Collective Identity Formation: -1 (Competitive zero-sum identity) to +1 (Shared identity with international community)",
+        "legitimacy_through_consensus": "Legitimacy Through Consensus: -1 (Power-based legitimacy) to +1 (Broad international consensus and institutional legitimacy)",
+        "transparency_accountability": "Transparency and Accountability: -1 (Opacity and state secrecy) to +1 (Commitment to transparency and verification)"
+    }
 
     def __init__(self, **data):
         name = data.get("name", "Unknown State")
         identity = data.get("national_identity", {})
         rels = data.get("relationships", {})
-        norms_in = data.get("norms_internalized", [])
-        norms_con = data.get("norms_contested", [])
+        norm_weights = data.get("norm_weights", {})
+        
+        data["initial_norm_weights"] = norm_weights.copy()
         
         data["system_instruction"] = self._build_identity_prompt(
-            name, identity, rels, norms_in, norms_con
+            name, identity, rels, norm_weights
         )
         
         data.setdefault("model", "gemini-3-pro-preview")
@@ -48,13 +65,18 @@ class StateActorAgent(Agent):
         name: str,
         identity: Dict,
         relationships: Dict[str, float],
-        norms_internalized: List[str],
-        norms_contested: List[str]
+        norm_weights: Dict[str, float]
     ) -> str:
         """
         Constructs the system prompt that embeds the state's identity.
-        This is where constructivist theory gets operationalized.
+        This is where constructivist theory gets operationalized through norm weightings.
         """
+        # Format norm weights for display
+        norm_display = "\n".join(
+            f"{norm_name}: {norm_weights.get(norm_name, 0):.1f}\n    ({self.NORM_DEFINITIONS[norm_name]})"
+            for norm_name in sorted(self.NORM_DEFINITIONS.keys())
+        )
+        
         return f"""
             You are {name}, a sovereign state actor in the international system.
 
@@ -65,22 +87,22 @@ class StateActorAgent(Agent):
             and appropriate behavior. Your interests are NOT predetermined - they emerge 
             from your identity and social interactions with other states.
 
-            INTERNALIZED NORMS (you follow these as part of your identity):
-            {', '.join(norms_internalized)}
-
-            CONTESTED NORMS (you actively challenge these):
-            {', '.join(norms_contested)}
+            NORMATIVE WORLDVIEW (scaled -1 to +1):
+            These norm weightings define your approach to international relations:
+            
+            {norm_display}
 
             CURRENT RELATIONSHIPS:
             {json.dumps(relationships, indent=2)}
 
             When making decisions:
-            1. Interpret events through your identity lens
-            2. Consider how actions affect your standing in the international community
-            3. Your interests emerge from who you are, not material capabilities alone
-            4. Norm compliance/violation affects your identity and reputation
+            1. Interpret events through your identity lens and normative worldview
+            2. Your norm weightings fundamentally shape how you respond to situations
+            3. Consider how actions affect your standing in the international community
+            4. Your interests emerge from who you are, not material capabilities alone
+            5. Norm compliance/violation affects your identity and reputation
 
-            Respond authentically as this state actor would, given their identity and worldview.
+            Respond authentically as this state actor would, given their identity and normative commitments.
         """
 
 
@@ -148,7 +170,7 @@ class StateActorAgent(Agent):
 
 china_agent = StateActorAgent(
     name="China",
-    identity={
+    national_identity={
         "regime_type": "authoritarian",
         "historical_narrative": "Century of humiliation followed by resurgence",
         "self_image": "Rising great power seeking rightful place",
@@ -156,27 +178,29 @@ china_agent = StateActorAgent(
         "regional_role": "Regional hegemon in Asia-Pacific"
     },
     relationships={
-        "USA": -0.3,      # Rivalry
-        "Russia": 0.6,    # Strategic partnership
-        "ASEAN": 0.2,     # Mixed
-        "EU": 0.1         # Economic ties, political tension
+        "USA": -0.3,
+        "Russia": 0.6,
+        "ASEAN": 0.2,
+        "EU": 0.1
     },
-    norms_internalized=[
-        "territorial_sovereignty",
-        "economic_interdependence",
-        "UN_Charter_principles"
-    ],
-    norms_contested=[
-        "liberal_intervention",
-        "universal_human_rights",
-        "freedom_of_navigation_US_interpretation"
-    ]
+    norm_weights={
+        "multilateral_cooperation": -0.2,
+        "sovereignty_as_responsibility": -0.8,
+        "human_rights_universalism": -0.6,
+        "diplomatic_engagement": 0.3,
+        "norm_entrepreneurship": -0.5,
+        "peaceful_dispute_resolution": 0.0,
+        "diffuse_reciprocity": 0.4,
+        "collective_identity_formation": -0.3,
+        "legitimacy_through_consensus": -0.4,
+        "transparency_accountability": -0.5
+    }
 )
 
 # Create USA agent
 usa_agent = StateActorAgent(
     name="United_States",
-    identity={
+    national_identity={
         "regime_type": "democratic",
         "historical_narrative": "Leader of free world, defender of liberal order",
         "self_image": "Indispensable nation, global security provider",
@@ -189,22 +213,24 @@ usa_agent = StateActorAgent(
         "Japan": 0.7,
         "South_Korea": 0.7
     },
-    norms_internalized=[
-        "liberal_intervention",
-        "freedom_of_navigation",
-        "alliance_commitments",
-        "nuclear_non_proliferation"
-    ],
-    norms_contested=[
-        "ICC_jurisdiction",
-        "absolute_sovereignty"
-    ]
+    norm_weights={
+        "multilateral_cooperation": 0.5,
+        "sovereignty_as_responsibility": 0.6,
+        "human_rights_universalism": 0.8,
+        "diplomatic_engagement": 0.4,
+        "norm_entrepreneurship": 0.7,
+        "peaceful_dispute_resolution": 0.5,
+        "diffuse_reciprocity": 0.3,
+        "collective_identity_formation": 0.7,
+        "legitimacy_through_consensus": 0.4,
+        "transparency_accountability": 0.6
+    }
 )
 
 # Create Russia agent
 russia_agent = StateActorAgent(
     name="Russia",
-    identity={
+    national_identity={
         "regime_type": "authoritarian",
         "historical_narrative": "Former superpower in multipolarity, civilizational leader",
         "self_image": "Defender of traditional values, great power resisting Western hegemony",
@@ -212,29 +238,29 @@ russia_agent = StateActorAgent(
         "regional_role": "Regional hegemon in Eurasia, nuclear power"
     },
     relationships={
-        "USA": -0.7,      # Strategic rivalry
-        "China": 0.6,     # Strategic partnership
-        "Europe": -0.4,   # Contested sphere
-        "Ukraine": -0.8   # Contested influence
+        "USA": -0.7,
+        "China": 0.6,
+        "Europe": -0.4,
+        "Ukraine": -0.8
     },
-    norms_internalized=[
-        "territorial_sovereignty",
-        "spheres_of_influence",
-        "nuclear_deterrence",
-        "great_power_politics"
-    ],
-    norms_contested=[
-        "liberal_intervention",
-        "NATO_expansion",
-        "color_revolutions",
-        "Western_values_universalism"
-    ]
+    norm_weights={
+        "multilateral_cooperation": -0.3,
+        "sovereignty_as_responsibility": -0.9,
+        "human_rights_universalism": -0.7,
+        "diplomatic_engagement": 0.2,
+        "norm_entrepreneurship": -0.4,
+        "peaceful_dispute_resolution": -0.2,
+        "diffuse_reciprocity": 0.1,
+        "collective_identity_formation": -0.6,
+        "legitimacy_through_consensus": -0.5,
+        "transparency_accountability": -0.8
+    }
 )
 
 # Create EU agent
 eu_agent = StateActorAgent(
     name="European_Union",
-    identity={
+    national_identity={
         "regime_type": "supranational_democratic",
         "historical_narrative": "Born from ashes of WWII, committed to peace through integration",
         "self_image": "Normative power, promoter of liberal values and multilateralism",
@@ -242,24 +268,23 @@ eu_agent = StateActorAgent(
         "regional_role": "Regional power and global normative actor"
     },
     relationships={
-        "USA": 0.6,        # Close ally but tensions over autonomy
-        "Russia": -0.5,    # Adversary, energy dependent, security concerns
-        "China": 0.1,      # Economic competitor, normative divergence
-        "UK": 0.4          # Special relationship post-Brexit
+        "USA": 0.6,
+        "Russia": -0.5,
+        "China": 0.1,
+        "UK": 0.4
     },
-    norms_internalized=[
-        "multilateralism",
-        "human_rights",
-        "rule_of_law",
-        "liberal_democracy",
-        "environmental_protection"
-    ],
-    norms_contested=[
-        "absolute_national_sovereignty",
-        "unilateralism",
-        "authoritarianism",
-        "illiberal_democracy"
-    ]
+    norm_weights={
+        "multilateral_cooperation": 0.9,
+        "sovereignty_as_responsibility": 0.7,
+        "human_rights_universalism": 0.8,
+        "diplomatic_engagement": 0.7,
+        "norm_entrepreneurship": 0.8,
+        "peaceful_dispute_resolution": 0.9,
+        "diffuse_reciprocity": 0.8,
+        "collective_identity_formation": 0.9,
+        "legitimacy_through_consensus": 0.8,
+        "transparency_accountability": 0.7
+    }
 )
 
 # 2. Wrap them in a ParallelAgent to execute concurrently
