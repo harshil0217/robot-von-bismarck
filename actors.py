@@ -69,8 +69,7 @@ russia_agent = StateActorAgent(
         "USA": -0.7,      # Strategic rivalry
         "China": 0.6,     # Strategic partnership
         "Europe": -0.4,   # Contested sphere
-        "Ukraine": -0.8,  # Contested influence
-        "Central_Asia": 0.5  # Sphere of influence
+        "Ukraine": -0.8   # Contested influence
     },
     norms_internalized=[
         "territorial_sovereignty",
