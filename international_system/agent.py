@@ -341,5 +341,9 @@ simultaneous_reaction = SequentialAgent(
 root_agent = LoopAgent(
     name="InternationalSimulation",
     sub_agents=[simultaneous_reaction],
-    max_iterations=3
+    max_iterations=5
 )
+
+from google.adk.apps import App
+
+app = App(root_agent=root_agent, name="international_system")

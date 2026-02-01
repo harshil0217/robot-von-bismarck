@@ -1,0 +1,50 @@
+{
+  "China": {
+    "multilateral_cooperation": -0.2,
+    "sovereignty_as_responsibility": -0.8,
+    "human_rights_universalism": -0.6,
+    "diplomatic_engagement": 0.3,
+    "norm_entrepreneurship": -0.5,
+    "peaceful_dispute_resolution": 0.0,
+    "diffuse_reciprocity": 0.4,
+    "collective_identity_formation": -0.3,
+    "legitimacy_through_consensus": -0.4,
+    "transparency_accountability": -0.5
+  },
+  "USA": {
+    "multilateral_cooperation": 0.5,
+    "sovereignty_as_responsibility": 0.6,
+    "human_rights_universalism": 0.8,
+    "diplomatic_engagement": 0.4,
+    "norm_entrepreneurship": 0.7,
+    "peaceful_dispute_resolution": 0.5,
+    "diffuse_reciprocity": 0.3,
+    "collective_identity_formation": 0.7,
+    "legitimacy_through_consensus": 0.4,
+    "transparency_accountability": 0.6
+  },
+  "Russia": {
+    "multilateral_cooperation": -0.3,
+    "sovereignty_as_responsibility": -0.9,
+    "human_rights_universalism": -0.7,
+    "diplomatic_engagement": 0.2,
+    "norm_entrepreneurship": -0.4,
+    "peaceful_dispute_resolution": -0.2,
+    "diffuse_reciprocity": 0.1,
+    "collective_identity_formation": -0.6,
+    "legitimacy_through_consensus": -0.5,
+    "transparency_accountability": -0.8
+  },
+  "EU": {
+    "multilateral_cooperation": 0.9,
+    "sovereignty_as_responsibility": 0.7,
+    "human_rights_universalism": 0.8,
+    "diplomatic_engagement": 0.7,
+    "norm_entrepreneurship": 0.8,
+    "peaceful_dispute_resolution": 0.9,
+    "diffuse_reciprocity": 0.8,
+    "collective_identity_formation": 0.9,
+    "legitimacy_through_consensus": 0.8,
+    "transparency_accountability": 0.7
+  }
+}

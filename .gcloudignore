@@ -1,0 +1,7 @@
+.backup_robot_otto/
+.env*
+.venv/
+__pycache__/
+.git/
+build/
+dist/
