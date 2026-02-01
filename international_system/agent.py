@@ -1,26 +1,19 @@
-from google.adk.agents import LoopAgent, ParallelAgent, SequentialAgent, LlmAgent
+from google.adk.agents import LoopAgent, SequentialAgent, LlmAgent
 from google.genai import types
 from typing import Dict, List
 import json
 from dotenv import load_dotenv
 from pydantic import ConfigDict, Field
 from google.adk.agents.llm_agent import Agent
-from google.genai import types
-from typing import Dict, List
-import json
-from dotenv import load_dotenv
-from pydantic import ConfigDict, Field
 from typing import ClassVar
-
-
 
 load_dotenv()
 
 class NormAdaptationAgent(LlmAgent):
     """
     A specialized agent that analyzes conversation history and determines 
-    how a state actor's norms should adapt based on observed interactions.
-    Used as a tool by StateActorAgent instances.
+    how state actors' norms should adapt based on observed interactions.
+    Outputs structured JSON with norm updates.
     """
     
     def __init__(self, **data):
@@ -28,74 +21,84 @@ class NormAdaptationAgent(LlmAgent):
         data["model"] = data.get("model", "gemini-2.0-flash")
         data["instruction"] = """You are an expert analyst of international relations and norm socialization.
 
-        Your task is to analyze diplomatic exchanges between state actors and determine how a specific 
-        state's normative commitments should evolve based on what it has observed.
+Your task is to analyze the conversation history of diplomatic exchanges between state actors 
+and determine how their normative commitments should evolve based on observed interactions.
 
-        You understand:
-        - Constructivist IR theory: norms are internalized through social interaction
-        - Socialization is gradual - changes should be small but meaningful
-        - Core identity constrains which norms can shift and in which directions
-        - Not all observations warrant norm changes
-        - States learn from both successful and unsuccessful strategies of others
+You understand:
+- Constructivist IR theory: norms are internalized through social interaction
+- Socialization is gradual - changes should be small but meaningful (±0.05 to ±0.15)
+- Core identity constrains which norms can shift and in which directions
+- Not all observations warrant norm changes
+- States learn from both successful and unsuccessful strategies of others
 
-        When analyzing conversations, consider:
-        1. **Mimicry/Learning**: Did successful states use approaches that challenge the focal state's norms?
-        2. **Isolation Costs**: Was the state isolated in its position? Did this have consequences?
-        3. **Norm Cascades**: Are multiple states converging on certain normative positions?
-        4. **Reinforcement**: Did events validate the state's existing normative commitments?
-        5. **Identity Constraints**: Which norm shifts are plausible given the state's core identity?
+When analyzing conversations, consider:
+1. **Mimicry/Learning**: Did successful states use approaches that challenge a state's norms?
+2. **Isolation Costs**: Was a state isolated in its position? Did this have consequences?
+3. **Norm Cascades**: Are multiple states converging on certain normative positions?
+4. **Reinforcement**: Did events validate existing normative commitments?
+5. **Identity Constraints**: Which norm shifts are plausible given core identities?
 
-        VALID ACTOR NAMES:
-        - China
-        - USA
-        - Russia
-        - EU
+VALID ACTOR NAMES: China, USA, Russia, EU
 
-        VALID NORM NAMES (append after actor_name with underscore):
-        - multilateral_cooperation
-        - sovereignty_as_responsibility
-        - human_rights_universalism
-        - diplomatic_engagement
-        - norm_entrepreneurship
-        - peaceful_dispute_resolution
-        - diffuse_reciprocity
-        - collective_identity_formation
-        - legitimacy_through_consensus
-        - transparency_accountability
+VALID NORM NAMES:
+- multilateral_cooperation
+- sovereignty_as_responsibility
+- human_rights_universalism
+- diplomatic_engagement
+- norm_entrepreneurship
+- peaceful_dispute_resolution
+- diffuse_reciprocity
+- collective_identity_formation
+- legitimacy_through_consensus
+- transparency_accountability
 
-        IMPORTANT: State variable names must follow this pattern: ACTOR_NORM
-        Where ACTOR is one of: China, USA, Russia, EU
-        And NORM is one of: multilateral_cooperation, sovereignty_as_responsibility, human_rights_universalism, 
-        diplomatic_engagement, norm_entrepreneurship, peaceful_dispute_resolution, diffuse_reciprocity, 
-        collective_identity_formation, legitimacy_through_consensus, transparency_accountability
-        
-        Examples of valid state variable names:
-        - China_multilateral_cooperation
-        - USA_peaceful_dispute_resolution
-        - Russia_sovereignty_as_responsibility
-        - EU_human_rights_universalism
+CRITICAL OUTPUT FORMAT:
+You must output valid JSON in the following format:
 
-        When calling update_norm_state, construct norm_updates dictionary with state variable names of this format.
-        Make small adjustments (±0.05 to ±0.15) only when socialization is evident.
-        Provide clear reasoning for each adjustment.
-        
-        These norm values will be maintained in the context and updated as iterations proceed.
-        
-        """
+{
+    "iteration": <current iteration number>,
+    "analysis": "Your brief analysis of what socialization occurred this round",
+    "norm_updates": {
+        "China": {
+            "multilateral_cooperation": <new_value>,
+            "sovereignty_as_responsibility": <new_value>,
+            "human_rights_universalism": <new_value>,
+            "diplomatic_engagement": <new_value>,
+            "norm_entrepreneurship": <new_value>,
+            "peaceful_dispute_resolution": <new_value>,
+            "diffuse_reciprocity": <new_value>,
+            "collective_identity_formation": <new_value>,
+            "legitimacy_through_consensus": <new_value>,
+            "transparency_accountability": <new_value>
+        },
+        "USA": { ... },
+        "Russia": { ... },
+        "EU": { ... }
+    },
+    "reasoning": {
+        "China": "Explanation for China's norm changes",
+        "USA": "Explanation for USA's norm changes",
+        "Russia": "Explanation for Russia's norm changes",
+        "EU": "Explanation for EU's norm changes"
+    }
+}
 
+IMPORTANT INSTRUCTIONS:
+1. Look through the conversation history to find the MOST RECENT norm values for each country
+2. If this is the first iteration, the initial values are in each state's opening message
+3. For subsequent iterations, find YOUR previous JSON output with the updated values
+4. Make small adjustments (±0.05 to ±0.15) based on the diplomatic exchanges you observed
+5. If no socialization occurred for a country, keep their values unchanged
+6. ALWAYS output ALL 10 norms for ALL 4 countries, even if unchanged
+7. Output ONLY valid JSON, no markdown formatting, no explanation before or after
+
+The conversation history contains all the information you need. Each state actor's current 
+norms can be found in the most recent norm update JSON (or their initial values if first iteration).
+"""
         super().__init__(**data)
 
-def update_norm_state(norm_updates: Dict[str, float]) -> str:
-    """Update state actor norms based on socialization. 
-    Norms are maintained in context and updated across iterations.
-    Use keys like 'China_multilateral_cooperation'."""
-    return f"Updated {len(norm_updates)} norm values based on socialization."
 
-
-norm_updater = NormAdaptationAgent(
-    tools = [update_norm_state],
-    instruction="Analyze history. If you see socialization, call update_norm_state."
-)
+norm_updater = NormAdaptationAgent()
 
 
 class StateActorAgent(Agent):
@@ -109,9 +112,6 @@ class StateActorAgent(Agent):
     relationships: Dict[str, float] = Field(default_factory=dict)
     norm_weights: Dict[str, float] = Field(default_factory=dict)
     
-    # Learning rate for norm adaptation (lower = slower change)
-    norm_adaptation_rate: float = Field(default=0.05)
-
     model_config = ConfigDict(arbitrary_types_allowed=True, extra='allow')
     
     # Define the 10 norms used across all agents
@@ -134,156 +134,85 @@ class StateActorAgent(Agent):
         rels = data.get("relationships", {})
         norm_weights = data.get("norm_weights", {})
         
-        data["initial_norm_weights"] = norm_weights.copy()
-        
         data["system_instruction"] = self._build_identity_prompt(
             name, identity, rels, norm_weights
         )
-        
         data.setdefault("model", "gemini-3-pro-preview")
-    
-        super().__init__(**data)
         
+        super().__init__(**data)
 
-    
     def _build_identity_prompt(
-        self,
-        name: str,
-        identity: Dict,
+        self, 
+        name: str, 
+        identity: Dict, 
         relationships: Dict[str, float],
         norm_weights: Dict[str, float]
     ) -> str:
         """
         Constructs the system prompt that embeds the state's identity.
-        This is where constructivist theory gets operationalized through norm weightings.
+        This is where constructivist theory gets operationalized.
         """
-        # Format norm weights for display
+        # Format initial norm weights for display
         norm_display = "\n".join(
-            f"{norm_name}: {norm_weights.get(norm_name, 0):.1f}\n    ({self.NORM_DEFINITIONS[norm_name]})"
+            f"  {norm_name}: {norm_weights.get(norm_name, 0.0):.2f}"
             for norm_name in sorted(self.NORM_DEFINITIONS.keys())
         )
         
-        return f"""
-            You are {name}, a sovereign state actor in the international system.
-
-            CORE IDENTITY (FIXED):
-            {json.dumps(identity, indent=2)}
-
-            Your identity fundamentally shapes how you perceive threats, opportunities, 
-            and appropriate behavior. Your interests are NOT predetermined - they emerge 
-            from your identity and social interactions with other states.
-
-            CURRENT RELATIONSHIPS:
-            {json.dumps(relationships, indent=2)}
-
-            NORMATIVE WORLDVIEW (DYNAMIC - maintained in context across iterations):
-            Your approach to international relations is shaped by 10 key norms, each weighted 
-            from -1 to +1. These norms are updated in the context as the simulation progresses:
-            - {name}_multilateral_cooperation
-            - {name}_sovereignty_as_responsibility
-            - {name}_human_rights_universalism
-            - {name}_diplomatic_engagement
-            - {name}_norm_entrepreneurship
-            - {name}_peaceful_dispute_resolution
-            - {name}_diffuse_reciprocity
-            - {name}_collective_identity_formation
-            - {name}_legitimacy_through_consensus
-            - {name}_transparency_accountability
-
-            CURRENT NORMATIVE WEIGHTS (from state): 
-            
-            {norm_display}
-            
-            Interpret all actions through these values
-
-            When making decisions:
-            1. Interpret events through your fixed identity lens
-            2. Consult your current norm weightings from context to guide your approach
-            3. Consider how actions affect your standing in the international community
-            4. Your interests emerge from who you are (identity) and how you've been socialized (norms)
-            5. Norm compliance/violation affects your identity and reputation
-
-            After observing other states' actions, you may gradually adapt your norms, but this 
-            is a slow process that respects your core identity. Norm updates are maintained in 
-            context and carried forward through each iteration.
-            """
-            
-    
-    def get_current_norms(self, context = None) -> Dict[str, float]:
-        """
-        Retrieve current norm weights from state.
-        """
-        state_prefix = f"{self.name}_norm_"
-        norms = {}
-        for norm_name in self.NORM_DEFINITIONS.keys():
-            state_key = f"{state_prefix}{norm_name}"
-            norms[norm_name] = context.state.get(state_key, 0.0)
-        return norms
-
-
-
-    """
-    async def perceive_event(self, event: Dict) -> Dict:
+        norm_definitions = "\n".join(
+            f"- {defn}" 
+            for defn in self.NORM_DEFINITIONS.values()
+        )
         
-        Process an international event through the lens of state identity.
-        Returns the state's interpretation and emotional response.
-        
-        prompt 
-            An event has occurred: {json.dumps(event, indent=2)}
+        return f"""You are {name}, a sovereign state actor in the international system.
 
-            As {self.name}, analyze this event:
-            1. What does this mean for your national interests (shaped by your identity)?
-            2. How does this affect your relationships with other states?
-            3. Does this event violate or reinforce international norms you care about?
-            4. What emotions does this evoke (threat, opportunity, solidarity, betrayal)?
+CORE IDENTITY (FIXED):
+{json.dumps(identity, indent=2)}
 
-            Provide your analysis in JSON format with keys: interpretation, threat_level, 
-            opportunities, norm_assessment, affected_relationships, emotional_response.
-        
-        response = ""
-        
-        user_message = types.Content(role='user', parts=[types.Part(text=prompt)])
-        
-        async for event in self.run_async(new_message = user_message):
-            if event.is_final_response() and event.content and event.content.parts:
-            # Reconstruct the response text from parts
-                response = "".join(part.text for part in event.content.parts if part.text)
-                break
-            
-        return response
-    
-        
-    async def create_action(self, situation: Dict) -> Dict:
-        
-        Generate a novel, plausible action based on identity, relationships, and norms.
-        Rather than selecting from predefined options, the agent creates an action
-        that authentically reflects its identity and strategic position.
-        
-        prompt 
-            Current Situation: {json.dumps(situation, indent=2)}
+Your identity fundamentally shapes how you perceive threats, opportunities, and 
+appropriate behavior. Your interests are NOT predetermined - they emerge from your 
+identity and social interactions with other states.
 
-            As {self.name}, generate a plausible diplomatic or strategic action that:
-            1. Authentically reflects your national identity and values
-            2. Considers your current relationships with other states
-            3. Aligns with the norms you internalize or challenges those you contest
-            4. Emerges from your strategic interests grounded in identity
+CURRENT RELATIONSHIPS:
+{json.dumps(relationships, indent=2)}
 
-            Think creatively but realistically about what actions a state with your identity
-            and current relationships would take in this situation. The action should be 
-            specific, concrete, and implementable in the international system.
+NORMATIVE WORLDVIEW (DYNAMIC):
+Your approach to international relations is shaped by 10 key norms, each weighted 
+from -1 to +1. These evolve through social interaction.
 
-            Return JSON: {{"action": "...", "action_type": "diplomatic|economic|military|cultural|multilateral", "justification": "...", "expected_reactions": {{}}, "risks": ["..."], "identity_alignment": "..."}}
-        
-        
-        response = await self.run_async(prompt)
-        
-        try:
-            return json.loads(response.text)
-        except json.JSONDecodeError:
-            return {"error": "Failed to parse agent response", "raw": response.text}
-            
-        """
+INITIAL NORM WEIGHTS:
+{norm_display}
 
+NORM DEFINITIONS:
+{norm_definitions}
+
+IMPORTANT: Your current norm values may have changed from these initial values! 
+Look back through the conversation history to find the most recent "norm_updates" 
+JSON from the NormAdaptationAnalyst. Those are your CURRENT values. If no updates 
+have been made yet (first iteration), use the initial values above.
+
+When making decisions:
+1. Review conversation history to find your CURRENT norm values (most recent update)
+2. Interpret events through your fixed identity lens
+3. Consult your current norm weightings to guide your approach
+4. Consider how actions affect your standing in the international community
+5. Your interests emerge from who you are (identity) and how you've been socialized (norms)
+6. Reference specific norm values when explaining your positions
+
+RESPONSE STYLE:
+- Engage naturally in diplomatic discourse
+- Reference your identity, relationships, and normative commitments
+- Respond to other states' positions and actions
+- Be authentic to your worldview while engaging substantively
+- You may note when your normative positions have shifted due to past interactions
+- Keep responses focused and diplomatic (2-4 paragraphs)
+
+After each round of state responses, the NormAdaptationAnalyst will analyze the 
+exchanges and update norm values based on observed socialization patterns. These 
+updates accumulate in the conversation history.
+"""
+
+
+# Create state actor agents with initial norm weights
 china_agent = StateActorAgent(
     name="China",
     national_identity={
@@ -310,11 +239,9 @@ china_agent = StateActorAgent(
         "collective_identity_formation": -0.3,
         "legitimacy_through_consensus": -0.4,
         "transparency_accountability": -0.5
-    },
-    
+    }
 )
 
-# Create USA agent
 usa_agent = StateActorAgent(
     name="USA",
     national_identity={
@@ -341,11 +268,9 @@ usa_agent = StateActorAgent(
         "collective_identity_formation": 0.7,
         "legitimacy_through_consensus": 0.4,
         "transparency_accountability": 0.6
-    },
-    
+    }
 )
 
-# Create Russia agent
 russia_agent = StateActorAgent(
     name="Russia",
     national_identity={
@@ -372,11 +297,9 @@ russia_agent = StateActorAgent(
         "collective_identity_formation": -0.6,
         "legitimacy_through_consensus": -0.5,
         "transparency_accountability": -0.8
-    },
-   
+    }
 )
 
-# Create EU agent
 eu_agent = StateActorAgent(
     name="EU",
     national_identity={
@@ -403,22 +326,20 @@ eu_agent = StateActorAgent(
         "collective_identity_formation": 0.9,
         "legitimacy_through_consensus": 0.8,
         "transparency_accountability": 0.7
-    },
-   
+    }
 )
 
 # Sequential agent: All state actors respond in sequence, then norm analyst updates norms
-# Norm values persist in context across iterations
+# State actors have normal conversations, only NormAdaptationAgent outputs JSON
 simultaneous_reaction = SequentialAgent(
     name="SimultaneousReaction",
     sub_agents=[usa_agent, china_agent, russia_agent, eu_agent, norm_updater]
 )
 
-# Loop agent: Repeat the sequence of reactions for multiple iterations
-# Initial norm weights are passed via context, updated each iteration
+# Loop agent: Repeat the sequence for multiple iterations
+# All norm tracking happens via conversation history
 root_agent = LoopAgent(
     name="InternationalSimulation",
     sub_agents=[simultaneous_reaction],
     max_iterations=3
 )
-
