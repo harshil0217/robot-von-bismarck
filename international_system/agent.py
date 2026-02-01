@@ -1,5 +1,4 @@
 from google.adk.agents import LoopAgent, ParallelAgent, SequentialAgent, LlmAgent
-from google.adk.runners import Runner
 from google.genai import types
 from typing import Dict, List
 import json
@@ -11,8 +10,116 @@ from typing import Dict, List
 import json
 from dotenv import load_dotenv
 from pydantic import ConfigDict, Field
+from typing import ClassVar
+from google.adk.tools import ToolContext
+
 
 load_dotenv()
+
+class NormAdaptationAgent(LlmAgent):
+    """
+    A specialized agent that analyzes conversation history and determines 
+    how a state actor's norms should adapt based on observed interactions.
+    Used as a tool by StateActorAgent instances.
+    """
+    
+    def __init__(self, **data):
+        data["name"] = "NormAdaptationAnalyst"
+        data["model"] = data.get("model", "gemini-2.0-flash")
+        data["instruction"] = """You are an expert analyst of international relations and norm socialization.
+
+        Your task is to analyze diplomatic exchanges between state actors and determine how a specific 
+        state's normative commitments should evolve based on what it has observed.
+
+        You understand:
+        - Constructivist IR theory: norms are internalized through social interaction
+        - Socialization is gradual - changes should be small but meaningful
+        - Core identity constrains which norms can shift and in which directions
+        - Not all observations warrant norm changes
+        - States learn from both successful and unsuccessful strategies of others
+
+        When analyzing conversations, consider:
+        1. **Mimicry/Learning**: Did successful states use approaches that challenge the focal state's norms?
+        2. **Isolation Costs**: Was the state isolated in its position? Did this have consequences?
+        3. **Norm Cascades**: Are multiple states converging on certain normative positions?
+        4. **Reinforcement**: Did events validate the state's existing normative commitments?
+        5. **Identity Constraints**: Which norm shifts are plausible given the state's core identity?
+
+        VALID ACTOR NAMES:
+        - China
+        - USA
+        - Russia
+        - EU
+
+        VALID NORM NAMES (append after actor_name with underscore):
+        - multilateral_cooperation
+        - sovereignty_as_responsibility
+        - human_rights_universalism
+        - diplomatic_engagement
+        - norm_entrepreneurship
+        - peaceful_dispute_resolution
+        - diffuse_reciprocity
+        - collective_identity_formation
+        - legitimacy_through_consensus
+        - transparency_accountability
+
+        IMPORTANT: Format state keys as {actor_name}_{norm_name}
+        
+        Examples:
+        - China_multilateral_cooperation
+        - USA_peaceful_dispute_resolution
+        - Russia_sovereignty_as_responsibility
+        - EU_human_rights_universalism
+
+        When calling update_norm_state, use norm_updates dictionary with these formatted keys.
+        Make small adjustments (±0.05 to ±0.15) only when socialization is evident.
+        Provide clear reasoning for each adjustment.
+        
+        You should return the norm norm updates in the form of a dicitionary norm:new_value for every norm being updated
+        
+        """
+
+        super().__init__(**data)
+
+def update_norm_state(norm_updates: Dict[str, float], tool_context: ToolContext = None) -> str:
+    """
+    Update state actor norms based on socialization.
+    
+    Args:
+        norm_updates: Dictionary mapping state keys (e.g., 'China_multilateral_cooperation') 
+                     to new float values between -1.0 and 1.0
+        tool_context: ADK ToolContext providing access to session state
+    
+    Returns:
+        Status message describing the updates
+    """
+    if tool_context is None:
+        return "Error: No tool context available"
+    
+    updated_count = 0
+    for state_key, new_value in norm_updates.items():
+        # Validate value range
+        if not -1.0 <= new_value <= 1.0:
+            continue
+        
+        # Update in session state
+        tool_context.state[state_key] = new_value
+        updated_count += 1
+    
+    return f"Updated {updated_count} norm values in session state"
+
+
+# Create the norm adaptation agent with the update tool
+norm_updater = NormAdaptationAgent(
+    tools=[update_norm_state],
+    instruction="Analyze conversation history. If you observe socialization dynamics, call update_norm_state with appropriate adjustments."
+)
+
+def initialize_norm_state(context: ToolContext, actor_name: str, norm_weights: Dict[str, float]):
+    for norm, value in norm_weights.items():
+        context.state[f"{actor_name}_norm_{norm}"] = value
+    return f"Initialized {len(norm_weights)} norms for {actor_name}"
+
 
 class StateActorAgent(Agent):
     """
@@ -31,7 +138,7 @@ class StateActorAgent(Agent):
     model_config = ConfigDict(arbitrary_types_allowed=True, extra='allow')
     
     # Define the 10 norms used across all agents
-    NORM_DEFINITIONS = {
+    NORM_DEFINITIONS: ClassVar[Dict[str, str]] = {
         "multilateral_cooperation": "Multilateral Cooperation: -1 (Pure unilateralism) to +1 (Committed multilateralism through international institutions)",
         "sovereignty_as_responsibility": "Sovereignty as Responsibility: -1 (Absolute sovereignty, no accountability) to +1 (R2P - duty to protect populations)",
         "human_rights_universalism": "Human Rights Universalism: -1 (Rejection of universal standards) to +1 (Universal commitment to human rights)",
@@ -59,6 +166,8 @@ class StateActorAgent(Agent):
         data.setdefault("model", "gemini-3-pro-preview")
     
         super().__init__(**data)
+        
+
     
     def _build_identity_prompt(
         self,
@@ -80,30 +189,62 @@ class StateActorAgent(Agent):
         return f"""
             You are {name}, a sovereign state actor in the international system.
 
-            CORE IDENTITY:
+            CORE IDENTITY (FIXED):
             {json.dumps(identity, indent=2)}
 
             Your identity fundamentally shapes how you perceive threats, opportunities, 
             and appropriate behavior. Your interests are NOT predetermined - they emerge 
             from your identity and social interactions with other states.
 
-            NORMATIVE WORLDVIEW (scaled -1 to +1):
-            These norm weightings define your approach to international relations:
-            
-            {norm_display}
-
             CURRENT RELATIONSHIPS:
             {json.dumps(relationships, indent=2)}
 
+            NORMATIVE WORLDVIEW (DYNAMIC - retrieved from state at runtime):
+            Your approach to international relations is shaped by 10 key norms, each weighted 
+            from -1 to +1. These norms are stored in your session state with keys like:
+            - {name}_norm_multilateral_cooperation
+            - {name}_norm_sovereignty_as_responsibility
+            - {name}_norm_human_rights_universalism
+            - {name}_norm_diplomatic_engagement
+            - {name}_norm_norm_entrepreneurship
+            - {name}_norm_peaceful_dispute_resolution
+            - {name}_norm_diffuse_reciprocity
+            - {name}_norm_collective_identity_formation
+            - {name}_norm_legitimacy_through_consensus
+            - {name}_norm_transparency_accountability
+
+            CURRENT NORMATIVE WEIGHTS (from state): 
+            
+            {norm_display}
+            
+            Interpret all actions through these values
+
             When making decisions:
-            1. Interpret events through your identity lens and normative worldview
-            2. Your norm weightings fundamentally shape how you respond to situations
+            1. Interpret events through your fixed identity lens
+            2. Consult your current norm weightings from state to guide your approach
             3. Consider how actions affect your standing in the international community
-            4. Your interests emerge from who you are, not material capabilities alone
+            4. Your interests emerge from who you are (identity) and how you've been socialized (norms)
             5. Norm compliance/violation affects your identity and reputation
 
-            Respond authentically as this state actor would, given their identity and normative commitments.
+            After observing other states' actions, you may gradually adapt your norms, but this 
+            is a slow process that respects your core identity.
+
+            Respond authentically as this state actor would, given their identity and current 
+            normative commitments (from state).
+            """
+            
+    
+    def get_current_norms(self, context: ToolContext) -> Dict[str, float]:
         """
+        Retrieve current norm weights from state.
+        """
+        state_prefix = f"{self.name}_norm_"
+        norms = {}
+        for norm_name in self.NORM_DEFINITIONS.keys():
+            state_key = f"{state_prefix}{norm_name}"
+            norms[norm_name] = context.state.get(state_key, 0.0)
+        return norms
+
 
 
     """
@@ -194,17 +335,18 @@ china_agent = StateActorAgent(
         "collective_identity_formation": -0.3,
         "legitimacy_through_consensus": -0.4,
         "transparency_accountability": -0.5
-    }
+    },
+    
 )
 
 # Create USA agent
 usa_agent = StateActorAgent(
-    name="United_States",
+    name="USA",
     national_identity={
         "regime_type": "democratic",
         "historical_narrative": "Leader of free world, defender of liberal order",
         "self_image": "Indispensable nation, global security provider",
-        "core_values": ["democracy", "human_rights", "rule_of_law", "free_markets"],
+        "core_values": ["democracy", "human-rights", "rule-of-law", "free-markets"],
         "regional_role": "Global hegemon with worldwide commitments"
     },
     relationships={
@@ -216,7 +358,7 @@ usa_agent = StateActorAgent(
     norm_weights={
         "multilateral_cooperation": 0.5,
         "sovereignty_as_responsibility": 0.6,
-        "human_rights_universalism": 0.8,
+        "human-rights_universalism": 0.8,
         "diplomatic_engagement": 0.4,
         "norm_entrepreneurship": 0.7,
         "peaceful_dispute_resolution": 0.5,
@@ -224,7 +366,8 @@ usa_agent = StateActorAgent(
         "collective_identity_formation": 0.7,
         "legitimacy_through_consensus": 0.4,
         "transparency_accountability": 0.6
-    }
+    },
+    
 )
 
 # Create Russia agent
@@ -234,7 +377,7 @@ russia_agent = StateActorAgent(
         "regime_type": "authoritarian",
         "historical_narrative": "Former superpower in multipolarity, civilizational leader",
         "self_image": "Defender of traditional values, great power resisting Western hegemony",
-        "core_values": ["sovereignty", "sphere_of_influence", "civilizational_identity", "multipolarity"],
+        "core_values": ["sovereignty", "sphere-of-influence", "civilizational-identity", "multipolarity"],
         "regional_role": "Regional hegemon in Eurasia, nuclear power"
     },
     relationships={
@@ -254,17 +397,18 @@ russia_agent = StateActorAgent(
         "collective_identity_formation": -0.6,
         "legitimacy_through_consensus": -0.5,
         "transparency_accountability": -0.8
-    }
+    },
+   
 )
 
 # Create EU agent
 eu_agent = StateActorAgent(
-    name="European_Union",
+    name="EU",
     national_identity={
         "regime_type": "supranational_democratic",
         "historical_narrative": "Born from ashes of WWII, committed to peace through integration",
         "self_image": "Normative power, promoter of liberal values and multilateralism",
-        "core_values": ["peace", "human_rights", "rule_of_law", "multilateralism", "solidarity"],
+        "core_values": ["peace", "human-rights", "rule-of-law", "multilateralism", "solidarity"],
         "regional_role": "Regional power and global normative actor"
     },
     relationships={
@@ -281,23 +425,78 @@ eu_agent = StateActorAgent(
         "norm_entrepreneurship": 0.8,
         "peaceful_dispute_resolution": 0.9,
         "diffuse_reciprocity": 0.8,
-        "collective_identity_formation": 0.9,
-        "legitimacy_through_consensus": 0.8,
+        "collective_identity-formation": 0.9,
+        "legitimacy_through-consensus": 0.8,
         "transparency_accountability": 0.7
-    }
+    },
+   
 )
 
+china_init_agent = LlmAgent(
+    name="ChinaInitializer",
+    model="gemini-2.0-flash",
+    instruction=f"""Initialize China's norm weights in state.
+    Call initialize_norm_state with:
+    - actor_name: "China"
+    - norm_weights: {json.dumps(china_agent.norm_weights)}
+    """,
+    tools=[initialize_norm_state]
+)
+
+usa_init_agent = LlmAgent(
+    name="USAInitializer",
+    model="gemini-2.0-flash",
+    instruction=f"""Initialize USA's norm weights in state.
+    Call initialize_norm_state with:
+    - actor_name: "USA"
+    - norm_weights: {json.dumps(usa_agent.norm_weights)}
+    """,
+    tools=[initialize_norm_state]
+)
+
+russia_init_agent = LlmAgent(
+    name="RussiaInitializer",
+    model="gemini-2.0-flash",
+    instruction=f"""Initialize Russia's norm weights in state.
+    Call initialize_norm_state with:
+    - actor_name: "Russia"
+    - norm_weights: {json.dumps(russia_agent.norm_weights)}
+    """,
+    tools=[initialize_norm_state]
+)
+
+
+eu_init_agent = LlmAgent(
+    name="EUInitializer",
+    model="gemini-2.0-flash",
+    instruction=f"""Initialize EU's norm weights in state.
+    Call initialize_norm_state with:
+    - actor_name: "EU"
+    - norm_weights: {json.dumps(eu_agent.norm_weights)}
+    """,
+    tools=[initialize_norm_state]
+)
 # 2. Wrap them in a ParallelAgent to execute concurrently
 # All agents in this list will start at approximately the same time
 simultaneous_reaction = SequentialAgent(
     name="SimultaneousReaction",
-    sub_agents=[usa_agent, china_agent, russia_agent, eu_agent]
+    sub_agents=[usa_agent, china_agent, russia_agent, eu_agent, norm_updater]
+)
+
+setup_phase = ParallelAgent(
+    name="SetupPhase",
+    sub_agents=[china_init_agent, usa_init_agent, russia_init_agent, eu_init_agent]
 )
 
 # 3. Use a LoopAgent to repeat the parallel "turn"
 # In each turn, both countries react to the latest state of the board
-root_agent  = LoopAgent(
+sim_agent  = LoopAgent(
     name="TariffSimulation",
     sub_agents=[simultaneous_reaction],
     max_iterations=3
+)
+
+root_agent = SequentialAgent(
+    name="RootOrchestration",
+    sub_agents=[setup_phase, sim_agent]
 )
