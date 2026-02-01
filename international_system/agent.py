@@ -79,20 +79,17 @@ class NormAdaptationAgent(LlmAgent):
         Make small adjustments (±0.05 to ±0.15) only when socialization is evident.
         Provide clear reasoning for each adjustment.
         
-        You should return the norm norm updates in the form of a dicitionary norm:new_value for every norm being updated
-        
-        Ensure you update norms for all countries and do not print the norms ever
+        These norm values will be maintained in the context and updated as iterations proceed.
         
         """
 
         super().__init__(**data)
 
-def update_norm_state(norm_updates: Dict[str, float], tool_context = None):
+def update_norm_state(norm_updates: Dict[str, float]) -> str:
     """Update state actor norms based on socialization. 
-    Use keys like 'norm_multilateral_cooperation'."""
-    for norm, value in norm_updates.items():
-        tool_context.state[norm] = value
-    return f"Updated {len(norm_updates)} norms in national identity."
+    Norms are maintained in context and updated across iterations.
+    Use keys like 'China_multilateral_cooperation'."""
+    return f"Updated {len(norm_updates)} norm values based on socialization."
 
 
 norm_updater = NormAdaptationAgent(
@@ -179,19 +176,19 @@ class StateActorAgent(Agent):
             CURRENT RELATIONSHIPS:
             {json.dumps(relationships, indent=2)}
 
-            NORMATIVE WORLDVIEW (DYNAMIC - retrieved from state at runtime):
+            NORMATIVE WORLDVIEW (DYNAMIC - maintained in context across iterations):
             Your approach to international relations is shaped by 10 key norms, each weighted 
-            from -1 to +1. These norms are stored in your session state with keys like:
-            - {name}_norm_multilateral_cooperation
-            - {name}_norm_sovereignty_as_responsibility
-            - {name}_norm_human_rights_universalism
-            - {name}_norm_diplomatic_engagement
-            - {name}_norm_norm_entrepreneurship
-            - {name}_norm_peaceful_dispute_resolution
-            - {name}_norm_diffuse_reciprocity
-            - {name}_norm_collective_identity_formation
-            - {name}_norm_legitimacy_through_consensus
-            - {name}_norm_transparency_accountability
+            from -1 to +1. These norms are updated in the context as the simulation progresses:
+            - {name}_multilateral_cooperation
+            - {name}_sovereignty_as_responsibility
+            - {name}_human_rights_universalism
+            - {name}_diplomatic_engagement
+            - {name}_norm_entrepreneurship
+            - {name}_peaceful_dispute_resolution
+            - {name}_diffuse_reciprocity
+            - {name}_collective_identity_formation
+            - {name}_legitimacy_through_consensus
+            - {name}_transparency_accountability
 
             CURRENT NORMATIVE WEIGHTS (from state): 
             
@@ -201,16 +198,14 @@ class StateActorAgent(Agent):
 
             When making decisions:
             1. Interpret events through your fixed identity lens
-            2. Consult your current norm weightings from state to guide your approach
+            2. Consult your current norm weightings from context to guide your approach
             3. Consider how actions affect your standing in the international community
             4. Your interests emerge from who you are (identity) and how you've been socialized (norms)
             5. Norm compliance/violation affects your identity and reputation
 
             After observing other states' actions, you may gradually adapt your norms, but this 
-            is a slow process that respects your core identity.
-
-            Respond authentically as this state actor would, given their identity and current 
-            normative commitments (from state).
+            is a slow process that respects your core identity. Norm updates are maintained in 
+            context and carried forward through each iteration.
             """
             
     
@@ -411,17 +406,18 @@ eu_agent = StateActorAgent(
     },
    
 )
-# 2. Wrap them in a ParallelAgent to execute concurrently
-# All agents in this list will start at approximately the same time
+
+# Sequential agent: All state actors respond in sequence, then norm analyst updates norms
+# Norm values persist in context across iterations
 simultaneous_reaction = SequentialAgent(
     name="SimultaneousReaction",
     sub_agents=[usa_agent, china_agent, russia_agent, eu_agent, norm_updater]
 )
 
-# 3. Use a LoopAgent to repeat the parallel "turn"
-# In each turn, both countries react to the latest state of the board
-root_agent  = LoopAgent(
-    name="TariffSimulation",
+# Loop agent: Repeat the sequence of reactions for multiple iterations
+# Initial norm weights are passed via context, updated each iteration
+root_agent = LoopAgent(
+    name="InternationalSimulation",
     sub_agents=[simultaneous_reaction],
     max_iterations=3
 )
