@@ -11,7 +11,7 @@ import json
 from dotenv import load_dotenv
 from pydantic import ConfigDict, Field
 from typing import ClassVar
-from google.adk.tools import ToolContext
+
 
 
 load_dotenv()
@@ -63,62 +63,42 @@ class NormAdaptationAgent(LlmAgent):
         - legitimacy_through_consensus
         - transparency_accountability
 
-        IMPORTANT: Format state keys as {actor_name}_{norm_name}
+        IMPORTANT: State variable names must follow this pattern: ACTOR_NORM
+        Where ACTOR is one of: China, USA, Russia, EU
+        And NORM is one of: multilateral_cooperation, sovereignty_as_responsibility, human_rights_universalism, 
+        diplomatic_engagement, norm_entrepreneurship, peaceful_dispute_resolution, diffuse_reciprocity, 
+        collective_identity_formation, legitimacy_through_consensus, transparency_accountability
         
-        Examples:
+        Examples of valid state variable names:
         - China_multilateral_cooperation
         - USA_peaceful_dispute_resolution
         - Russia_sovereignty_as_responsibility
         - EU_human_rights_universalism
 
-        When calling update_norm_state, use norm_updates dictionary with these formatted keys.
+        When calling update_norm_state, construct norm_updates dictionary with state variable names of this format.
         Make small adjustments (±0.05 to ±0.15) only when socialization is evident.
         Provide clear reasoning for each adjustment.
         
         You should return the norm norm updates in the form of a dicitionary norm:new_value for every norm being updated
         
+        Ensure you update norms for all countries and do not print the norms ever
+        
         """
 
         super().__init__(**data)
 
-def update_norm_state(norm_updates: Dict[str, float], tool_context: ToolContext = None) -> str:
-    """
-    Update state actor norms based on socialization.
-    
-    Args:
-        norm_updates: Dictionary mapping state keys (e.g., 'China_multilateral_cooperation') 
-                     to new float values between -1.0 and 1.0
-        tool_context: ADK ToolContext providing access to session state
-    
-    Returns:
-        Status message describing the updates
-    """
-    if tool_context is None:
-        return "Error: No tool context available"
-    
-    updated_count = 0
-    for state_key, new_value in norm_updates.items():
-        # Validate value range
-        if not -1.0 <= new_value <= 1.0:
-            continue
-        
-        # Update in session state
-        tool_context.state[state_key] = new_value
-        updated_count += 1
-    
-    return f"Updated {updated_count} norm values in session state"
+def update_norm_state(norm_updates: Dict[str, float], tool_context = None):
+    """Update state actor norms based on socialization. 
+    Use keys like 'norm_multilateral_cooperation'."""
+    for norm, value in norm_updates.items():
+        tool_context.state[norm] = value
+    return f"Updated {len(norm_updates)} norms in national identity."
 
 
-# Create the norm adaptation agent with the update tool
 norm_updater = NormAdaptationAgent(
-    tools=[update_norm_state],
-    instruction="Analyze conversation history. If you observe socialization dynamics, call update_norm_state with appropriate adjustments."
+    tools = [update_norm_state],
+    instruction="Analyze history. If you see socialization, call update_norm_state."
 )
-
-def initialize_norm_state(context: ToolContext, actor_name: str, norm_weights: Dict[str, float]):
-    for norm, value in norm_weights.items():
-        context.state[f"{actor_name}_norm_{norm}"] = value
-    return f"Initialized {len(norm_weights)} norms for {actor_name}"
 
 
 class StateActorAgent(Agent):
@@ -234,7 +214,7 @@ class StateActorAgent(Agent):
             """
             
     
-    def get_current_norms(self, context: ToolContext) -> Dict[str, float]:
+    def get_current_norms(self, context = None) -> Dict[str, float]:
         """
         Retrieve current norm weights from state.
         """
@@ -358,7 +338,7 @@ usa_agent = StateActorAgent(
     norm_weights={
         "multilateral_cooperation": 0.5,
         "sovereignty_as_responsibility": 0.6,
-        "human-rights_universalism": 0.8,
+        "human_rights_universalism": 0.8,
         "diplomatic_engagement": 0.4,
         "norm_entrepreneurship": 0.7,
         "peaceful_dispute_resolution": 0.5,
@@ -377,7 +357,7 @@ russia_agent = StateActorAgent(
         "regime_type": "authoritarian",
         "historical_narrative": "Former superpower in multipolarity, civilizational leader",
         "self_image": "Defender of traditional values, great power resisting Western hegemony",
-        "core_values": ["sovereignty", "sphere-of-influence", "civilizational-identity", "multipolarity"],
+        "core_values": ["sovereignty", "sphere_of_influence", "civilizational_identity", "multipolarity"],
         "regional_role": "Regional hegemon in Eurasia, nuclear power"
     },
     relationships={
@@ -425,56 +405,11 @@ eu_agent = StateActorAgent(
         "norm_entrepreneurship": 0.8,
         "peaceful_dispute_resolution": 0.9,
         "diffuse_reciprocity": 0.8,
-        "collective_identity-formation": 0.9,
-        "legitimacy_through-consensus": 0.8,
+        "collective_identity_formation": 0.9,
+        "legitimacy_through_consensus": 0.8,
         "transparency_accountability": 0.7
     },
    
-)
-
-china_init_agent = LlmAgent(
-    name="ChinaInitializer",
-    model="gemini-2.0-flash",
-    instruction=f"""Initialize China's norm weights in state.
-    Call initialize_norm_state with:
-    - actor_name: "China"
-    - norm_weights: {json.dumps(china_agent.norm_weights)}
-    """,
-    tools=[initialize_norm_state]
-)
-
-usa_init_agent = LlmAgent(
-    name="USAInitializer",
-    model="gemini-2.0-flash",
-    instruction=f"""Initialize USA's norm weights in state.
-    Call initialize_norm_state with:
-    - actor_name: "USA"
-    - norm_weights: {json.dumps(usa_agent.norm_weights)}
-    """,
-    tools=[initialize_norm_state]
-)
-
-russia_init_agent = LlmAgent(
-    name="RussiaInitializer",
-    model="gemini-2.0-flash",
-    instruction=f"""Initialize Russia's norm weights in state.
-    Call initialize_norm_state with:
-    - actor_name: "Russia"
-    - norm_weights: {json.dumps(russia_agent.norm_weights)}
-    """,
-    tools=[initialize_norm_state]
-)
-
-
-eu_init_agent = LlmAgent(
-    name="EUInitializer",
-    model="gemini-2.0-flash",
-    instruction=f"""Initialize EU's norm weights in state.
-    Call initialize_norm_state with:
-    - actor_name: "EU"
-    - norm_weights: {json.dumps(eu_agent.norm_weights)}
-    """,
-    tools=[initialize_norm_state]
 )
 # 2. Wrap them in a ParallelAgent to execute concurrently
 # All agents in this list will start at approximately the same time
@@ -483,20 +418,11 @@ simultaneous_reaction = SequentialAgent(
     sub_agents=[usa_agent, china_agent, russia_agent, eu_agent, norm_updater]
 )
 
-setup_phase = ParallelAgent(
-    name="SetupPhase",
-    sub_agents=[china_init_agent, usa_init_agent, russia_init_agent, eu_init_agent]
-)
-
 # 3. Use a LoopAgent to repeat the parallel "turn"
 # In each turn, both countries react to the latest state of the board
-sim_agent  = LoopAgent(
+root_agent  = LoopAgent(
     name="TariffSimulation",
     sub_agents=[simultaneous_reaction],
     max_iterations=3
 )
 
-root_agent = SequentialAgent(
-    name="RootOrchestration",
-    sub_agents=[setup_phase, sim_agent]
-)
